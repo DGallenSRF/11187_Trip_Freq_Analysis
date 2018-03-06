@@ -1,0 +1,41 @@
+---
+title: "Trip Freq Analysis"
+output: html_notebook
+---
+
+```{r,echo=FALSE,include=FALSE}
+library(magrittr)
+library(scales)
+library(stringr)
+library(forecast)
+library(leaflet)
+library(tidyverse)
+library(reshape2)
+library(plotly)
+library(lubridate)
+library(kableExtra)
+library(DT)
+options(knitr.table.format = "html") 
+```
+
+
+Set the working directory to H:/Projects/11000/11187/TS/Task 3.
+
+```{r 'setup',include=FALSE}
+require(knitr)
+opts_knit$set(root.dir = "H:/Projects/11000/11187/TS/Task 3")
+```
+
+
+Load the Scott_County_CR78_trips.csv file
+
+```{r}
+
+
+CR_78 <- read.csv("CR 78/scott_county_CR78_trips.csv",stringsAsFactors = FALSE)
+
+dim(CR_78)
+
+```
+
+The dimensions of the  dataset are `r paste(dim(CR_78)[1],'rows and',dim(CR_78)[2],'columns')`.
