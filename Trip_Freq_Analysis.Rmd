@@ -23,7 +23,8 @@ Set the working directory to H:/Projects/11000/11187/TS/Task 3.
 
 ```{r 'setup',include=FALSE}
 require(knitr)
-opts_knit$set(root.dir = "H:/Projects/11000/11187/TS/Task 3")
+opts_knit$set(root.dir = "H:/Projects/11000/11187/TS/Task 3/R")
+dir()
 ```
 
 
@@ -32,10 +33,37 @@ Load the Scott_County_CR78_trips.csv file
 ```{r}
 
 
-CR_78 <- read.csv("CR 78/scott_county_CR78_trips.csv",stringsAsFactors = FALSE)
+CR_78 <- read.csv("H:/Projects/11000/11187/TS/Task 3/CR 78/scott_county_CR78_trips.csv",stringsAsFactors = FALSE)
 
 dim(CR_78)
-
+str(CR_78)
 ```
 
 The dimensions of the  dataset are `r paste(dim(CR_78)[1],'rows and',dim(CR_78)[2],'columns')`.
+
+
+Start Locations
+```{r,echo=FALSE,fig.height=5}
+icon_start <- makeIcon('icon_start.png',iconWidth = 10, iconHeight = 8)
+
+leaflet(data=CR_78,width = '100%') %>%
+  setView(lng = -93.550825, lat =  44.721614, zoom = 11)%>%
+  addTiles() %>% 
+  addMarkers(~start_longitude,~start_latitude,icon = icon_start) %>%
+  addProviderTiles(providers$OpenStreetMap)
+
+```
+
+
+End Locations:
+
+```{r,echo=FALSE,fig.height=5}
+icon_end <- makeIcon('icon_end.png',iconWidth = 10, iconHeight = 8)
+
+leaflet(data=CR_78,width = '100%') %>%
+  setView(lng = -93.550825, lat =  44.721614, zoom = 11)%>%
+  addTiles() %>% 
+  addMarkers(~end_longitude,~end_latitude,icon = icon_end) %>%
+  addProviderTiles(providers$OpenStreetMap)
+
+```
