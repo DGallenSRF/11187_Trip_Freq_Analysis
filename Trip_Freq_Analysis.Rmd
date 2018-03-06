@@ -15,6 +15,7 @@ library(plotly)
 library(lubridate)
 library(kableExtra)
 library(DT)
+library(rgdal)
 options(knitr.table.format = "html") 
 ```
 
@@ -35,6 +36,7 @@ Load the Scott_County_CR78_trips.csv file
 
 CR_78 <- read.csv("H:/Projects/11000/11187/TS/Task 3/CR 78/scott_county_CR78_trips.csv",stringsAsFactors = FALSE)
 
+Link_dist <-  readxl::read_xlsx('H:/Projects/11000/11187/TS/Task 3/CR 78/scott_county_CR78_trips.xlsx',sheet = 'LinkDistances')
 dim(CR_78)
 str(CR_78)
 ```
@@ -42,12 +44,64 @@ str(CR_78)
 The dimensions of the  dataset are `r paste(dim(CR_78)[1],'rows and',dim(CR_78)[2],'columns')`.
 
 
+```{r}
+
+fgdb <- "H:/Projects/11000/11187/TS/Task 3/Scott County.gdb"
+CR_78_seg <- readOGR(dsn=fgdb,layer="CR_78_1")
+
+```
+
+```{r,echo=FALSE,fig.height=5}
+
+leaflet(data=CR_78_seg,width = '100%') %>%
+  setView(lng = -93.550825, lat =  44.771614, zoom = 12)%>%
+  addPolylines(highlightOptions = highlightOptions(color = "white", weight = 2,
+      bringToFront = TRUE),label=~AB) %>% 
+  addProviderTiles(providers$OpenStreetMap)
+
+```
+
+```{r}
+CR_78$paths <- CR_78$path
+x <- CR_78 %>% separate(paths,remove = TRUE,sep='#',into = paste('V',c(1:1000),sep = ''))
+
+size <- sapply(x,function(x)all(is.na(x)))
+min(which(size==TRUE))
+colnames(x)[min(which(size==TRUE))]
+```
+
+```{r}
+trip_components <-  melt(x,id.vars = 'tripflag',
+                        measure.vars = colnames(x)[20:316],
+                        value.name = 'A+B',
+                        sep='') 
+
+trip_components %<>%  
+  merge(Link_dist,by='A+B') %>% 
+  arrange(tripflag)
+
+trip_components <- filter(trip_components,
+                          trip_components$`A+B` %in% CR_78_seg$Link)
+```
+
+```{r}
+
+trip_summary <- trip_components %>%
+  group_by(`A+B`,tripflag)%>%
+  summarise(Total_Dist = sum(DISTANCE))%>%
+  arrange(desc(`A+B`))
+
+trip_summary
+```
+
+
+
 Start Locations
 ```{r,echo=FALSE,fig.height=5}
 icon_start <- makeIcon('icon_start.png',iconWidth = 10, iconHeight = 8)
 
 leaflet(data=CR_78,width = '100%') %>%
-  setView(lng = -93.550825, lat =  44.721614, zoom = 11)%>%
+  setView(lng = -93.550825, lat =  44.721614, zoom = 8)%>%
   addTiles() %>% 
   addMarkers(~start_longitude,~start_latitude,icon = icon_start) %>%
   addProviderTiles(providers$OpenStreetMap)
@@ -61,9 +115,27 @@ End Locations:
 icon_end <- makeIcon('icon_end.png',iconWidth = 10, iconHeight = 8)
 
 leaflet(data=CR_78,width = '100%') %>%
-  setView(lng = -93.550825, lat =  44.721614, zoom = 11)%>%
+  setView(lng = -93.550825, lat =  44.721614, zoom = 8)%>%
   addTiles() %>% 
   addMarkers(~end_longitude,~end_latitude,icon = icon_end) %>%
+  addProviderTiles(providers$OpenStreetMap)
+
+```
+
+```{r}
+
+fgdb <- "H:/Projects/11000/11187/TS/Task 3/Scott County.gdb"
+CR_78_seg <- readOGR(dsn=fgdb,layer="CR_78_1")
+
+```
+
+```{r,echo=FALSE,fig.height=5}
+
+
+leaflet(data=CR_78_seg,width = '100%') %>%
+  setView(lng = -93.550825, lat =  44.771614, zoom = 12)%>%
+  addPolylines(highlightOptions = highlightOptions(color = "white", weight = 2,
+      bringToFront = TRUE),label=~AB) %>% 
   addProviderTiles(providers$OpenStreetMap)
 
 ```
