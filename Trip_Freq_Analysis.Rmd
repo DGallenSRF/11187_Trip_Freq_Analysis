@@ -51,15 +51,6 @@ CR_78_seg <- readOGR(dsn=fgdb,layer="CR_78_1")
 
 ```
 
-```{r,echo=FALSE,fig.height=5}
-
-leaflet(data=CR_78_seg,width = '100%') %>%
-  setView(lng = -93.550825, lat =  44.771614, zoom = 12)%>%
-  addPolylines(highlightOptions = highlightOptions(color = "white", weight = 2,
-      bringToFront = TRUE),label=~AB) %>% 
-  addProviderTiles(providers$OpenStreetMap)
-
-```
 
 ```{r}
 CR_78$paths <- CR_78$path
@@ -71,27 +62,68 @@ colnames(x)[min(which(size==TRUE))]
 ```
 
 ```{r}
-trip_components <-  melt(x,id.vars = 'tripflag',
+trip_components <-  melt(x,id.vars = c('trip_id',
+                                       'start_latitude',
+                                       'start_longitude',
+                                       'end_latitude',
+                                       'end_longitude'),
                         measure.vars = colnames(x)[20:316],
                         value.name = 'A+B',
                         sep='') 
 
-trip_components %<>%  
-  merge(Link_dist,by='A+B') %>% 
-  arrange(tripflag)
+trip_components <-   merge(trip_components,Link_dist,by='A+B') %>% arrange(trip_id)
 
-trip_components <- filter(trip_components,
-                          trip_components$`A+B` %in% CR_78_seg$Link)
+###trips can go through our segment
+###trips <- filter(trip_components,trip_components$`A+B` %in% CR_78_seg$Link)
+####trip_ids <- trips[!duplicated(trips$trip_id),]
+
 ```
 
 ```{r}
-
-trip_summary <- trip_components %>%
-  group_by(`A+B`,tripflag)%>%
+###find the total distance for each Trip
+tripflag_summary <- trip_components %>%
+  group_by(trip_id)%>%
   summarise(Total_Dist = sum(DISTANCE))%>%
-  arrange(desc(`A+B`))
+  arrange(desc(Total_Dist))
 
-trip_summary
+tripflag_summary <- merge(tripflag_summary,CR_78[,c(1,14:18)],by='trip_id')
+
+datatable(tripflag_summary,filter='top')
+
+```
+
+```{r}
+###attached total trip distance to each link
+trip_comp <- merge(trip_components,tripflag_summary,
+                         by.x='trip_id',by.y='trip_id')%>%
+  arrange(desc(Total_Dist))
+
+###summarise the trip distances by our links 
+trip_details <- trip_comp %>% group_by(`A+B`) %>%
+  summarise(Mean = mean(Total_Dist),
+            Max = max(Total_Dist),
+            Min = min(Total_Dist),
+            Std = sd(Total_Dist))
+
+###filter the trips for only our trips of interest
+trips <- filter(trip_details,trip_details$`A+B` %in% CR_78_seg$Link)
+datatable(trips,filter='top')
+```
+
+
+
+```{r,echo=FALSE,fig.height=5}
+
+CR_78_plot <- merge(CR_78_seg,trips,by.x='Link',by.y='A+B')
+
+CR_78_plot$label <- paste(CR_78_plot$AB,'Mean Dist:',as.character(round(CR_78_plot$Mean,2)))
+
+leaflet(data=CR_78_plot,width = '100%') %>%
+  setView(lng = -93.550825, lat =  44.771614, zoom = 13)%>%
+  addPolylines(highlightOptions = highlightOptions(color = "white", weight = 2,
+      bringToFront = TRUE),label=~label) %>% 
+  addProviderTiles(providers$OpenStreetMap)
+
 ```
 
 
@@ -99,11 +131,12 @@ trip_summary
 Start Locations
 ```{r,echo=FALSE,fig.height=5}
 icon_start <- makeIcon('icon_start.png',iconWidth = 10, iconHeight = 8)
+data <- tripflag_summary[tripflag_summary$Total_Dist<=10,]
 
-leaflet(data=CR_78,width = '100%') %>%
-  setView(lng = -93.550825, lat =  44.721614, zoom = 8)%>%
+leaflet(data=data,width = '100%') %>%
+  setView(lng = -93.550825, lat =  44.721614, zoom = 10)%>%
   addTiles() %>% 
-  addMarkers(~start_longitude,~start_latitude,icon = icon_start) %>%
+  addMarkers(~start_longitude,~start_latitude,label=~trip_id,icon = icon_start) %>%
   addProviderTiles(providers$OpenStreetMap)
 
 ```
@@ -114,28 +147,11 @@ End Locations:
 ```{r,echo=FALSE,fig.height=5}
 icon_end <- makeIcon('icon_end.png',iconWidth = 10, iconHeight = 8)
 
-leaflet(data=CR_78,width = '100%') %>%
-  setView(lng = -93.550825, lat =  44.721614, zoom = 8)%>%
+data <- tripflag_summary[tripflag_summary$Total_Dist<=10,]
+leaflet(data=data,width = '100%') %>%
+  setView(lng = -93.550825, lat =  44.721614, zoom = 10)%>%
   addTiles() %>% 
   addMarkers(~end_longitude,~end_latitude,icon = icon_end) %>%
-  addProviderTiles(providers$OpenStreetMap)
-
-```
-
-```{r}
-
-fgdb <- "H:/Projects/11000/11187/TS/Task 3/Scott County.gdb"
-CR_78_seg <- readOGR(dsn=fgdb,layer="CR_78_1")
-
-```
-
-```{r,echo=FALSE,fig.height=5}
-
-
-leaflet(data=CR_78_seg,width = '100%') %>%
-  setView(lng = -93.550825, lat =  44.771614, zoom = 12)%>%
-  addPolylines(highlightOptions = highlightOptions(color = "white", weight = 2,
-      bringToFront = TRUE),label=~AB) %>% 
   addProviderTiles(providers$OpenStreetMap)
 
 ```
