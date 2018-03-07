@@ -29,32 +29,36 @@ dir()
 ```
 
 
-Load the Scott_County_CR78_trips.csv file
+Load the Scott_County_CR78_trips_78.csv file
 
 ```{r}
 
 
 CR_78 <- read.csv("H:/Projects/11000/11187/TS/Task 3/CR 78/scott_county_CR78_trips.csv",stringsAsFactors = FALSE)
 
-Link_dist <-  readxl::read_xlsx('H:/Projects/11000/11187/TS/Task 3/CR 78/scott_county_CR78_trips.xlsx',sheet = 'LinkDistances')
-dim(CR_78)
-str(CR_78)
+Link_dist_78 <-  readxl::read_xlsx('H:/Projects/11000/11187/TS/Task 3/CR 78/scott_county_CR78_trips.xlsx',sheet = 'LinkDistances')
+
+CR_42 <- read.csv("H:/Projects/11000/11187/TS/Task 3/CR 42/scott_county_CR42_trips.csv",stringsAsFactors = FALSE)
+
+Link_dist_42 <-  readxl::read_xlsx('H:/Projects/11000/11187/TS/Task 3/CR 42/scott_county_CR42_trips.xlsx',sheet = 'LinkDistances')
+
 ```
 
-The dimensions of the  dataset are `r paste(dim(CR_78)[1],'rows and',dim(CR_78)[2],'columns')`.
-
+The dimensions of the CR_78 dataset are `r paste(dim(CR_78)[1],'rows and',dim(CR_78)[2],'columns')`.
+The dimensions of the CR_42 dataset are `r paste(dim(CR_42)[1],'rows and',dim(CR_42)[2],'columns')`.
 
 ```{r}
 
 fgdb <- "H:/Projects/11000/11187/TS/Task 3/Scott County.gdb"
-CR_78_seg <- readOGR(dsn=fgdb,layer="CR_78_1")
+CR_78_seg <- readOGR(dsn=fgdb,layer="CR_78_seg")
+CR_42_seg <- readOGR(dsn=fgdb,layer="CR_42_seg")
 
 ```
 
 
 ```{r}
 CR_78$paths <- CR_78$path
-x <- CR_78 %>% separate(paths,remove = TRUE,sep='#',into = paste('V',c(1:1000),sep = ''))
+x_78 <- CR_78 %>% separate(paths,remove = TRUE,sep='#',into = paste('V',c(1:1000),sep = ''))
 
 size <- sapply(x,function(x)all(is.na(x)))
 min(which(size==TRUE))
@@ -62,7 +66,7 @@ colnames(x)[min(which(size==TRUE))]
 ```
 
 ```{r}
-trip_components <-  melt(x,id.vars = c('trip_id',
+trip_components_78 <-  melt(x,id.vars = c('trip_id',
                                        'start_latitude',
                                        'start_longitude',
                                        'end_latitude',
@@ -71,50 +75,50 @@ trip_components <-  melt(x,id.vars = c('trip_id',
                         value.name = 'A+B',
                         sep='') 
 
-trip_components <-   merge(trip_components,Link_dist,by='A+B') %>% arrange(trip_id)
+trip_components_78 <-   merge(trip_components_78,Link_dist,by='A+B') %>% arrange(trip_id)
 
-###trips can go through our segment
-###trips <- filter(trip_components,trip_components$`A+B` %in% CR_78_seg$Link)
-####trip_ids <- trips[!duplicated(trips$trip_id),]
+###trips_78 can go through our segment
+###trips_78 <- filter(trip_components_78,trip_components_78$`A+B` %in% CR_78_seg$Link)
+####trip_ids <- trips_78[!duplicated(trips_78$trip_id),]
 
 ```
 
 ```{r}
 ###find the total distance for each Trip
-tripflag_summary <- trip_components %>%
+tripflag_summary_78 <- trip_components_78 %>%
   group_by(trip_id)%>%
   summarise(Total_Dist = sum(DISTANCE))%>%
   arrange(desc(Total_Dist))
 
-tripflag_summary <- merge(tripflag_summary,CR_78[,c(1,14:18)],by='trip_id')
+tripflag_summary_78 <- merge(tripflag_summary_78,CR_78[,c(1,14:18)],by='trip_id')
 
-datatable(tripflag_summary,filter='top')
+datatable(tripflag_summary_78,filter='top')
 
 ```
 
 ```{r}
 ###attached total trip distance to each link
-trip_comp <- merge(trip_components,tripflag_summary,
+trip_comp_78 <- merge(trip_components_78,tripflag_summary_78,
                          by.x='trip_id',by.y='trip_id')%>%
   arrange(desc(Total_Dist))
 
 ###summarise the trip distances by our links 
-trip_details <- trip_comp %>% group_by(`A+B`) %>%
+trip_details <- trip_comp_78 %>% group_by(`A+B`) %>%
   summarise(Mean = mean(Total_Dist),
             Max = max(Total_Dist),
             Min = min(Total_Dist),
             Std = sd(Total_Dist))
 
-###filter the trips for only our trips of interest
-trips <- filter(trip_details,trip_details$`A+B` %in% CR_78_seg$Link)
-datatable(trips,filter='top')
+###filter the trips_78 for only our trips_78 of interest
+trips_78 <- filter(trip_details,trip_details$`A+B` %in% CR_78_seg$Link)
+datatable(trips_78,filter='top')
 ```
 
 
 
 ```{r,echo=FALSE,fig.height=5}
 
-CR_78_plot <- merge(CR_78_seg,trips,by.x='Link',by.y='A+B')
+CR_78_plot <- merge(CR_78_seg,trips_78,by.x='Link',by.y='A+B')
 
 CR_78_plot$label <- paste(CR_78_plot$AB,'Mean Dist:',as.character(round(CR_78_plot$Mean,2)))
 
@@ -131,12 +135,19 @@ leaflet(data=CR_78_plot,width = '100%') %>%
 Start Locations
 ```{r,echo=FALSE,fig.height=5}
 icon_start <- makeIcon('icon_start.png',iconWidth = 10, iconHeight = 8)
-data <- tripflag_summary[tripflag_summary$Total_Dist<=10,]
+data <- tripflag_summary_78
 
+list_radius <- list(1609.34*5,1609.34*10,1609.34*25,1609.34*50)
+list_label <- list('5 miles','10 miles','25 miles','50 miles')
+
+
+data <- tripflag_summary_78
 leaflet(data=data,width = '100%') %>%
-  setView(lng = -93.550825, lat =  44.721614, zoom = 10)%>%
+  setView(lng = -93.50508, lat =  44.753019, zoom = 10)%>%
   addTiles() %>% 
-  addMarkers(~start_longitude,~start_latitude,label=~trip_id,icon = icon_start) %>%
+  addMarkers(~start_longitude,~start_latitude,icon = icon_start,label=~trip_id) %>%
+  addCircles(lng = -93.50508, lat =  44.753019,radius = list_radius,
+             fillColor = 'none',label =list_label)%>%
   addProviderTiles(providers$OpenStreetMap)
 
 ```
@@ -147,11 +158,18 @@ End Locations:
 ```{r,echo=FALSE,fig.height=5}
 icon_end <- makeIcon('icon_end.png',iconWidth = 10, iconHeight = 8)
 
-data <- tripflag_summary[tripflag_summary$Total_Dist<=10,]
+list_radius <- list(1609.34*5,1609.34*10,1609.34*25,1609.34*50)
+list_label <- list('5 miles','10 miles','25 miles','50 miles')
+
+
+
+data <- tripflag_summary_78
 leaflet(data=data,width = '100%') %>%
-  setView(lng = -93.550825, lat =  44.721614, zoom = 10)%>%
+  setView(lng = -93.50508, lat =  44.753019, zoom = 10)%>%
   addTiles() %>% 
   addMarkers(~end_longitude,~end_latitude,icon = icon_end) %>%
+  addCircles(lng = -93.50508, lat =  44.753019,radius = list_radius,
+             fillColor = 'none',label =list_label)%>%
   addProviderTiles(providers$OpenStreetMap)
 
 ```
