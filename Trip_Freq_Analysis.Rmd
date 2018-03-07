@@ -47,6 +47,8 @@ Link_dist_42 <-  readxl::read_xlsx('H:/Projects/11000/11187/TS/Task 3/CR 42/scot
 The dimensions of the CR_78 dataset are `r paste(dim(CR_78)[1],'rows and',dim(CR_78)[2],'columns')`.
 The dimensions of the CR_42 dataset are `r paste(dim(CR_42)[1],'rows and',dim(CR_42)[2],'columns')`.
 
+Load the segment from the File Geodatabase on the H Drive project folder.
+
 ```{r}
 
 fgdb <- "H:/Projects/11000/11187/TS/Task 3/Scott County.gdb"
@@ -55,65 +57,142 @@ CR_42_seg <- readOGR(dsn=fgdb,layer="CR_42_seg")
 
 ```
 
+![CR_78 and CR_42 Analysis Links](Segment_Overview.png)
 
-```{r}
-CR_78$paths <- CR_78$path
-x_78 <- CR_78 %>% separate(paths,remove = TRUE,sep='#',into = paste('V',c(1:1000),sep = ''))
+```{r, echo=FALSE,warning=FALSE,include=TRUE}
+CR_78 %<>% mutate(Date=ymd_hms(start_date_central,tz="US/Central"))%>%
+  select(-path,everything())%>%
+  separate(path,remove = FALSE,sep='#',into = paste('V',c(1:1000),sep = ''))
 
-size <- sapply(x,function(x)all(is.na(x)))
+size <- sapply(CR_78,function(x)all(is.na(x)))
 min(which(size==TRUE))
-colnames(x)[min(which(size==TRUE))]
+colnames(CR_78)[min(which(size==TRUE))]
+
+CR_42 %<>% mutate(Date=ymd_hms(start_date_central,tz="US/Central"))%>%
+  select(-path,everything())%>%
+  separate(path,remove = FALSE,sep='#',into = paste('V',c(1:1000),sep = ''))
+
+size <- sapply(CR_42,function(x)all(is.na(x)))
+min(which(size==TRUE))
+colnames(CR_42)[min(which(size==TRUE))]
 ```
 
-```{r}
-trip_components_78 <-  melt(x,id.vars = c('trip_id',
+```{r,echo=FALSE,warning=FALSE}
+
+col_78 <- colnames(CR_78)%in% paste('V',c(1:297),sep='')
+
+trip_components_78 <-  melt(CR_78,id.vars = c('trip_id',
                                        'start_latitude',
                                        'start_longitude',
                                        'end_latitude',
-                                       'end_longitude'),
-                        measure.vars = colnames(x)[20:316],
+                                       'end_longitude',
+                                       'Date'),
+                        measure.vars = colnames(CR_78)[col_78],
                         value.name = 'A+B',
                         sep='') 
 
-trip_components_78 <-   merge(trip_components_78,Link_dist,by='A+B') %>% arrange(trip_id)
+trip_components_78 <-   merge(trip_components_78,Link_dist_78,by='A+B') %>% arrange(trip_id)
 
 ###trips_78 can go through our segment
 ###trips_78 <- filter(trip_components_78,trip_components_78$`A+B` %in% CR_78_seg$Link)
 ####trip_ids <- trips_78[!duplicated(trips_78$trip_id),]
 
+col_42 <- colnames(CR_42)%in% paste('V',c(1:270),sep='')
+
+trip_components_42 <-  melt(CR_42,id.vars = c('trip_id',
+                                       'start_latitude',
+                                       'start_longitude',
+                                       'end_latitude',
+                                       'end_longitude',
+                                       'Date'),
+                        measure.vars = colnames(CR_42)[col_42],
+                        value.name = 'A+B',
+                        sep='') 
+
+trip_components_42 <-   merge(trip_components_42,Link_dist_42,by='A+B') %>% arrange(trip_id)
+
+
 ```
 
-```{r}
+```{r,echo=FALSE,warning=FALSE}
 ###find the total distance for each Trip
 tripflag_summary_78 <- trip_components_78 %>%
   group_by(trip_id)%>%
   summarise(Total_Dist = sum(DISTANCE))%>%
   arrange(desc(Total_Dist))
 
-tripflag_summary_78 <- merge(tripflag_summary_78,CR_78[,c(1,14:18)],by='trip_id')
+tripflag_summary_78 <- merge(tripflag_summary_78,
+                             CR_78[,c("trip_id","Date","start_latitude",
+                                      "start_longitude","end_latitude",
+                                      "end_longitude")],
+                             by='trip_id')
 
-datatable(tripflag_summary_78,filter='top')
+###datatable(tripflag_summary_78,filter='top')
+
+###find the total distance for each Trip
+tripflag_summary_42 <- trip_components_42 %>%
+  group_by(trip_id)%>%
+  summarise(Total_Dist = sum(DISTANCE))%>%
+  arrange(desc(Total_Dist))
+
+tripflag_summary_42 <- merge(tripflag_summary_42,
+                             CR_42[,c("trip_id","Date","start_latitude",
+                                      "start_longitude","end_latitude",
+                                      "end_longitude")],
+                             by='trip_id')
+
+###datatable(tripflag_summary_42,filter='top')
 
 ```
 
-```{r}
+
+```{r,echo=FALSE,warning=FALSE}
 ###attached total trip distance to each link
-trip_comp_78 <- merge(trip_components_78,tripflag_summary_78,
-                         by.x='trip_id',by.y='trip_id')%>%
-  arrange(desc(Total_Dist))
+###filter the trips for only our trips of interest in segment 42
+trip_comp_merge_78 <- merge(trip_components_78,tripflag_summary_78,
+                         by.x='trip_id',by.y='trip_id',all.x=TRUE)%>%
+  arrange(desc(Total_Dist))%>%
+  filter(`A+B` %in% CR_78_seg$Link)%>%
+  filter(Total_Dist<40)
 
 ###summarise the trip distances by our links 
-trip_details <- trip_comp_78 %>% group_by(`A+B`) %>%
+###this summary is for trips less than 50 miles.
+###trip total distance is not accurate outside of this range. 
+link_details_78 <- trip_comp_merge_78 %>% group_by(`A+B`) %>%
   summarise(Mean = mean(Total_Dist),
             Max = max(Total_Dist),
             Min = min(Total_Dist),
             Std = sd(Total_Dist))
 
-###filter the trips_78 for only our trips_78 of interest
-trips_78 <- filter(trip_details,trip_details$`A+B` %in% CR_78_seg$Link)
-datatable(trips_78,filter='top')
+###datatable(trips_78,filter='top')
+
+###attached total trip distance to each link
+###filter the trips for only our trips of interest in segment 42
+trip_comp_merge_42 <- merge(trip_components_42,tripflag_summary_42,
+                         by.x='trip_id',by.y='trip_id',all.x=TRUE)%>%
+  arrange(desc(Total_Dist))%>%
+  filter(`A+B` %in% CR_42_seg$Link)%>%
+  filter(Total_Dist<40)
+
+###summarise the trip distances by our links 
+###this summary is for trips less than 50 miles.
+###trip total distance is not accurate outside of this range. 
+link_details_42 <- trip_comp_merge_42 %>% group_by(`A+B`) %>%
+  summarise(Mean = mean(Total_Dist),
+            Max = max(Total_Dist),
+            Min = min(Total_Dist),
+            Std = sd(Total_Dist))
+
+
+###datatable(trips_42,filter='top')
+
+
 ```
 
+
+## Scott County {.tabset .tabset-fade}
+
+### CR_78
 
 
 ```{r,echo=FALSE,fig.height=5}
@@ -130,18 +209,27 @@ leaflet(data=CR_78_plot,width = '100%') %>%
 
 ```
 
+```{r}
+gg <-  ggplot(tripflag_summary_42[tripflag_summary_42$Total_Dist<50,])+
+  geom_histogram(aes(x=Total_Dist),color='black',fill='white')+
+  labs(title="Total Trip Distance histogram plot",x="Total Distance (miles)", y = "Count")
+  
+ggplotly(gg)
+
+```
 
 
-Start Locations
+Start Locations:
 ```{r,echo=FALSE,fig.height=5}
 icon_start <- makeIcon('icon_start.png',iconWidth = 10, iconHeight = 8)
-data <- tripflag_summary_78
+data <- tripflag_summary_78 %>%filter(Total_Dist<40)
 
-list_radius <- list(1609.34*5,1609.34*10,1609.34*25,1609.34*50)
-list_label <- list('5 miles','10 miles','25 miles','50 miles')
+list_radius <- list(1609.34*5,1609.34*10,1609.34*20,1609.34*40)
+list_label <- list('5 miles','10 miles','20 miles','40 miles')
+```
 
+```{r,echo=FALSE,fig.height=5}
 
-data <- tripflag_summary_78
 leaflet(data=data,width = '100%') %>%
   setView(lng = -93.50508, lat =  44.753019, zoom = 10)%>%
   addTiles() %>% 
@@ -156,18 +244,76 @@ leaflet(data=data,width = '100%') %>%
 End Locations:
 
 ```{r,echo=FALSE,fig.height=5}
-icon_end <- makeIcon('icon_end.png',iconWidth = 10, iconHeight = 8)
-
-list_radius <- list(1609.34*5,1609.34*10,1609.34*25,1609.34*50)
-list_label <- list('5 miles','10 miles','25 miles','50 miles')
 
 
-
-data <- tripflag_summary_78
 leaflet(data=data,width = '100%') %>%
   setView(lng = -93.50508, lat =  44.753019, zoom = 10)%>%
   addTiles() %>% 
-  addMarkers(~end_longitude,~end_latitude,icon = icon_end) %>%
+  addMarkers(~end_longitude,~end_latitude,icon = icon_end,label=~trip_id) %>%
+  addCircles(lng = -93.50508, lat =  44.753019,radius = list_radius,
+             fillColor = 'none',label =list_label)%>%
+  addProviderTiles(providers$OpenStreetMap)
+
+```
+
+
+
+### CR_42
+
+
+```{r,echo=FALSE,fig.height=5}
+
+CR_42_plot <- merge(CR_42_seg,trips_42,by.x='Link',by.y='A+B')
+
+CR_42_plot$label <- paste(CR_42_plot$AB,'Mean Dist:',as.character(round(CR_42_plot$Mean,2)))
+
+leaflet(data=CR_42_plot,width = '100%') %>%
+  setView(lng = -93.550825, lat =  44.771614, zoom = 13)%>%
+  addPolylines(highlightOptions = highlightOptions(color = "white", weight = 2,
+      bringToFront = TRUE),label=~label) %>% 
+  addProviderTiles(providers$OpenStreetMap)
+
+```
+
+```{r}
+gg <-  ggplot(tripflag_summary_78[tripflag_summary_78$Total_Dist<50,])+
+  geom_histogram(aes(x=Total_Dist),color='black',fill='white')+
+  labs(title="Total Trip Distance histogram plot",x="Total Distance (miles)", y = "Count")
+  
+ggplotly(gg)
+
+```
+
+Start Locations:
+```{r,echo=FALSE,fig.height=5}
+icon_start <- makeIcon('icon_start.png',iconWidth = 10, iconHeight = 8)
+data <- tripflag_summary_42%>%filter(Total_Dist<40)
+
+list_radius <- list(1609.34*5,1609.34*10,1609.34*20,1609.34*40)
+list_label <- list('5 miles','10 miles','20 miles','40 miles')
+```
+
+```{r,echo=FALSE,fig.height=5}
+
+leaflet(data=data,width = '100%') %>%
+  setView(lng = -93.50508, lat =  44.753019, zoom = 10)%>%
+  addTiles() %>% 
+  addMarkers(~start_longitude,~start_latitude,icon = icon_start,label=~trip_id) %>%
+  addCircles(lng = -93.50508, lat =  44.753019,radius = list_radius,
+             fillColor = 'none',label =list_label)%>%
+  addProviderTiles(providers$OpenStreetMap)
+
+```
+
+
+End Locations:
+
+```{r,echo=FALSE,fig.height=5}
+
+leaflet(data=data,width = '100%') %>%
+  setView(lng = -93.50508, lat =  44.753019, zoom = 10)%>%
+  addTiles() %>% 
+  addMarkers(~end_longitude,~end_latitude,icon = icon_end,label=~trip_id) %>%
   addCircles(lng = -93.50508, lat =  44.753019,radius = list_radius,
              fillColor = 'none',label =list_label)%>%
   addProviderTiles(providers$OpenStreetMap)
