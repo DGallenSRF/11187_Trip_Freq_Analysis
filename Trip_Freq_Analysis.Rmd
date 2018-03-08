@@ -34,11 +34,13 @@ Load the Scott_County_CR78_trips_78.csv file
 ```{r}
 
 
-CR_78 <- read.csv("H:/Projects/11000/11187/TS/Task 3/CR 78/scott_county_CR78_trips.csv",stringsAsFactors = FALSE)
+CR_78 <- read.csv("H:/Projects/11000/11187/TS/Task 3/CR 78/scott_county_CR78_trips.csv",stringsAsFactors = FALSE)%>%
+  mutate(Date=ymd_hms(start_date_central,tz="US/Central"))
 
 Link_dist_78 <-  readxl::read_xlsx('H:/Projects/11000/11187/TS/Task 3/CR 78/scott_county_CR78_trips.xlsx',sheet = 'LinkDistances')
 
-CR_42 <- read.csv("H:/Projects/11000/11187/TS/Task 3/CR 42/scott_county_CR42_trips.csv",stringsAsFactors = FALSE)
+CR_42 <- read.csv("H:/Projects/11000/11187/TS/Task 3/CR 42/scott_county_CR42_trips.csv",stringsAsFactors = FALSE)%>%
+  mutate(Date=ymd_hms(start_date_central,tz="US/Central"))
 
 Link_dist_42 <-  readxl::read_xlsx('H:/Projects/11000/11187/TS/Task 3/CR 42/scott_county_CR42_trips.xlsx',sheet = 'LinkDistances')
 
@@ -47,9 +49,8 @@ Link_dist_42 <-  readxl::read_xlsx('H:/Projects/11000/11187/TS/Task 3/CR 42/scot
 The dimensions of the CR_78 dataset are `r paste(dim(CR_78)[1],'rows and',dim(CR_78)[2],'columns')`.
 The dimensions of the CR_42 dataset are `r paste(dim(CR_42)[1],'rows and',dim(CR_42)[2],'columns')`.
 
-Load the segment from the File Geodatabase on the H Drive project folder.
 
-```{r}
+```{r,echo=FALSE,include=FALSE}
 
 fgdb <- "H:/Projects/11000/11187/TS/Task 3/Scott County.gdb"
 CR_78_seg <- readOGR(dsn=fgdb,layer="CR_78_seg")
@@ -57,37 +58,42 @@ CR_42_seg <- readOGR(dsn=fgdb,layer="CR_42_seg")
 
 ```
 
+Two combinations of links were used for analysis. The segments were loaded from the File Geodatabase on the H Drive project folder, `rfgb`.
+
+The segment for CR_42 included `r dim(CR_78_seg)[1]` links.
+The segment for CR_42 included `r dim(CR_42_seg)[1]` links.
+
 ![CR_78 and CR_42 Analysis Links](Segment_Overview.png)
 
-```{r, echo=FALSE,warning=FALSE,include=TRUE}
-CR_78 %<>% mutate(Date=ymd_hms(start_date_central,tz="US/Central"))%>%
+```{r, echo=FALSE,warning=FALSE,include=FALSE}
+CR_78_x <-  CR_78 %>%
   select(-path,everything())%>%
   separate(path,remove = FALSE,sep='#',into = paste('V',c(1:1000),sep = ''))
 
-size <- sapply(CR_78,function(x)all(is.na(x)))
+size <- sapply(CR_78_x,function(x)all(is.na(x)))
 min(which(size==TRUE))
-colnames(CR_78)[min(which(size==TRUE))]
+colnames(CR_78_x)[min(which(size==TRUE))]
 
-CR_42 %<>% mutate(Date=ymd_hms(start_date_central,tz="US/Central"))%>%
+CR_42_x <-  mutate(CR_42,Date=ymd_hms(start_date_central,tz="US/Central"))%>%
   select(-path,everything())%>%
   separate(path,remove = FALSE,sep='#',into = paste('V',c(1:1000),sep = ''))
 
-size <- sapply(CR_42,function(x)all(is.na(x)))
+size <- sapply(CR_42_x,function(x)all(is.na(x)))
 min(which(size==TRUE))
-colnames(CR_42)[min(which(size==TRUE))]
+colnames(CR_42_x)[min(which(size==TRUE))]
 ```
 
 ```{r,echo=FALSE,warning=FALSE}
 
-col_78 <- colnames(CR_78)%in% paste('V',c(1:297),sep='')
+col_78 <- colnames(CR_78_x)%in% paste('V',c(1:297),sep='')
 
-trip_components_78 <-  melt(CR_78,id.vars = c('trip_id',
+trip_components_78 <-  melt(CR_78_x,id.vars = c('trip_id',
                                        'start_latitude',
                                        'start_longitude',
                                        'end_latitude',
                                        'end_longitude',
                                        'Date'),
-                        measure.vars = colnames(CR_78)[col_78],
+                        measure.vars = colnames(CR_78_x)[col_78],
                         value.name = 'A+B',
                         sep='') 
 
@@ -97,20 +103,21 @@ trip_components_78 <-   merge(trip_components_78,Link_dist_78,by='A+B') %>% arra
 ###trips_78 <- filter(trip_components_78,trip_components_78$`A+B` %in% CR_78_seg$Link)
 ####trip_ids <- trips_78[!duplicated(trips_78$trip_id),]
 
-col_42 <- colnames(CR_42)%in% paste('V',c(1:270),sep='')
+col_42 <- colnames(CR_42_x)%in% paste('V',c(1:270),sep='')
 
-trip_components_42 <-  melt(CR_42,id.vars = c('trip_id',
+trip_components_42 <-  melt(CR_42_x,id.vars = c('trip_id',
                                        'start_latitude',
                                        'start_longitude',
                                        'end_latitude',
                                        'end_longitude',
                                        'Date'),
-                        measure.vars = colnames(CR_42)[col_42],
+                        measure.vars = colnames(CR_42_x)[col_42],
                         value.name = 'A+B',
                         sep='') 
 
 trip_components_42 <-   merge(trip_components_42,Link_dist_42,by='A+B') %>% arrange(trip_id)
 
+rm(CR_78_x,CR_42_x)
 
 ```
 
@@ -194,10 +201,11 @@ link_details_42 <- trip_comp_merge_42 %>% group_by(`A+B`) %>%
 
 ### CR_78
 
+The data was collected between `r format(min(CR_78$Date),'%Y-%m-%d')` and `r format(max(CR_78$Date),'%Y-%m-%d')`.
 
 ```{r,echo=FALSE,fig.height=5}
 
-CR_78_plot <- merge(CR_78_seg,trips_78,by.x='Link',by.y='A+B')
+CR_78_plot <- merge(CR_78_seg,link_details_78,by.x='Link',by.y='A+B')
 
 CR_78_plot$label <- paste(CR_78_plot$AB,'Mean Dist:',as.character(round(CR_78_plot$Mean,2)))
 
@@ -210,8 +218,19 @@ leaflet(data=CR_78_plot,width = '100%') %>%
 ```
 
 ```{r}
-gg <-  ggplot(tripflag_summary_42[tripflag_summary_42$Total_Dist<50,])+
-  geom_histogram(aes(x=Total_Dist),color='black',fill='white')+
+
+tripflag_summary_42 %>% 
+  mutate(in_model = Total_Dist<40)%>%
+  ggplot(aes(x=in_model))+
+  geom_bar(stat = 'count')+
+  labs(title='Trips less than 40 miles',x=element_blank(),y='Total Count')+
+  scale_y_continuous(breaks = seq(0,900,50))+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+gg <-  ggplot(tripflag_summary_42[tripflag_summary_42$Total_Dist<40,])+
+  geom_histogram(aes(x=Total_Dist),color='black',fill='white',binwidth = 2.5)+
   labs(title="Total Trip Distance histogram plot",x="Total Distance (miles)", y = "Count")
   
 ggplotly(gg)
@@ -261,9 +280,11 @@ leaflet(data=data,width = '100%') %>%
 ### CR_42
 
 
+The data was collected between `r format(min(CR_78$Date),'%Y-%m-%d')` and `r format(max(CR_78$Date),'%Y-%m-%d')`.
+
 ```{r,echo=FALSE,fig.height=5}
 
-CR_42_plot <- merge(CR_42_seg,trips_42,by.x='Link',by.y='A+B')
+CR_42_plot <- merge(CR_42_seg,link_details_42,by.x='Link',by.y='A+B')
 
 CR_42_plot$label <- paste(CR_42_plot$AB,'Mean Dist:',as.character(round(CR_42_plot$Mean,2)))
 
@@ -276,8 +297,20 @@ leaflet(data=CR_42_plot,width = '100%') %>%
 ```
 
 ```{r}
-gg <-  ggplot(tripflag_summary_78[tripflag_summary_78$Total_Dist<50,])+
-  geom_histogram(aes(x=Total_Dist),color='black',fill='white')+
+
+tripflag_summary_78 %>% 
+  mutate(in_model = Total_Dist<40)%>%
+  ggplot(aes(x=in_model))+
+  geom_bar(stat = 'count')+
+  labs(title='Trips less than 40 miles',x=element_blank(),y='Total Count')+
+  scale_y_continuous(breaks = seq(0,1500,50))+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+gg <-  ggplot(tripflag_summary_78[tripflag_summary_78$Total_Dist<40,])+
+  geom_histogram(aes(x=Total_Dist),color='black',fill='white',binwidth = 2.5)+
   labs(title="Total Trip Distance histogram plot",x="Total Distance (miles)", y = "Count")
   
 ggplotly(gg)
